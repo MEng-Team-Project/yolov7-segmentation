@@ -1,3 +1,6 @@
+# ADDITIONS
+import json
+
 import argparse
 import os
 import platform
@@ -139,8 +142,11 @@ def run(
                 p, im0, frame = path, im0s.copy(), getattr(dataset, 'frame', 0)
 
             p = Path(p)  # to Path
-            save_path = str(save_dir / p.name)  # im.jpg
-            txt_path = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # im.txt
+            save_path  = str(save_dir / p.name)  # im.jpg
+            txt_path   = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # im.txt
+            track_path = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_track_{frame}')  # im_track.json
+            info_path  = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_info_{frame}')  # im_info.json
+            
             s += '%gx%g ' % im.shape[2:]  # print string
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
             imc = im0.copy() if save_crop else im0  # for save_crop
@@ -176,24 +182,49 @@ def run(
                                                     conf, detclass])))
 
                     tracked_dets = sort_tracker.update(dets_to_sort)
-                    tracks =sort_tracker.getTrackers()
+                    tracks       = sort_tracker.getTrackers()
 
+                    track_outs = []
                     for track in tracks:
-                        annotator.draw_trk(line_thickness,track)
+                        track_out = annotator.draw_trk(line_thickness, track)
+                        track_outs.append(track_out)
+
+                    if save_txt:
+                        line = json.dumps({"routes": track_outs})
+                        with open(f'{track_path}.json', 'a') as f:
+                            f.write(line + '\n')
 
                     if len(tracked_dets)>0:
                         bbox_xyxy = tracked_dets[:,:4]
                         identities = tracked_dets[:, 8]
                         categories = tracked_dets[:, 4]
-                        annotator.draw_id(bbox_xyxy, identities, categories, names)
+                        info_s = annotator.draw_id(bbox_xyxy, identities, categories, names)
+                        if save_txt:
+                            line = json.dumps({"infos": info_s})
+                            with open(f'{info_path}.json', 'a') as f:
+                                f.write(line + '\n')
             
                 # Write results
                 for j, (*xyxy, conf, cls) in enumerate(reversed(det[:, :6])):
+                    """
                     if save_txt:  # Write to file
                         segj = segments[j].reshape(-1)  # (n,2) to (n*2)
                         line = (cls, *segj, conf) if save_conf else (cls, *segj)  # label format
                         with open(f'{txt_path}.txt', 'a') as f:
                             f.write(('%g ' * len(line)).rstrip() % line + '\n')
+                    """
+                    if save_txt:
+                        current_obj = {
+                            "class": cls.item(),
+                            "x1":    xyxy[0].item(),
+                            "y1":    xyxy[1].item(),
+                            "x2":    xyxy[2].item(),
+                            "y2":    xyxy[3].item(),
+                            "conf":  conf.item(),
+                        }
+                        line = json.dumps(current_obj)
+                        with open(f'{txt_path}.json', 'a') as f:
+                            f.write(line + '\n')
 
                     if save_img or save_crop or view_img:  # Add bbox to image
                         c = int(cls)  # integer class

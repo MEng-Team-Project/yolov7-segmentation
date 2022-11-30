@@ -114,14 +114,25 @@ class Annotator:
                             lineType=cv2.LINE_AA)
 
 
-    def draw_trk(self,thickness,centroids):
+    def draw_trk(self, thickness, centroids):
+        track_out = [{
+                        "x1": str(int(centroids.centroids[i][0])),
+                        "y1": str(int(centroids.centroids[i][1])),
+                        "x2": str(int(centroids.centroids[i+1][0])),
+                        "y2": str(int(centroids.centroids[i+1][1]))
+                    }
+                    for i, _ in  enumerate(centroids.centroids)
+                    if i < len(centroids.centroids)-1]
+
         [cv2.line(self.im, (int(centroids.centroids[i][0]),int(centroids.centroids[i][1])),
                 (int(centroids.centroids[i+1][0]),int(centroids.centroids[i+1][1])),
                 (255,144,30), thickness=thickness) for i,_ in  enumerate(centroids.centroids)
                 if i < len(centroids.centroids)-1 ]
 
+        return track_out
 
     def draw_id(self, bbox, identities=None, categories=None, names=None, offset=(0, 0)):
+        info_s = []
         for i, box in enumerate(bbox):
             x1, y1, x2, y2 = [int(i) for i in box]
             x1 += offset[0]
@@ -136,7 +147,20 @@ class Annotator:
             cv2.rectangle(self.im, (x1, y1 - 20), (x1 + w, y1), (255,144,30), -1)
             cv2.putText(self.im, label, (x1, y1 - 5),cv2.FONT_HERSHEY_SIMPLEX, 0.6, [255, 255, 255], 1)
             cv2.circle(self.im, data, 4, (255,0,255),-1)
-
+            info_s.append({
+                "bbox": {
+                    "x1": str(x1),
+                    "y1": str(y1),
+                    "x2": str(x2),
+                    "y2": str(y2)
+                },
+                "label": str(label),
+                "anchor": {
+                    "x": str(data[0]),
+                    "y": str(data[1])
+                }
+            })
+        return info_s
 
     def rectangle(self, xy, fill=None, outline=None, width=1):
         # Add rectangle to image (PIL-only)
