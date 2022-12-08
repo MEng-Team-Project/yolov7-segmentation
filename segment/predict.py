@@ -108,7 +108,11 @@ def run(
     # Run inference
     model.warmup(imgsz=(1 if pt else bs, 3, *imgsz))  # warmup
     seen, windows, dt = 0, [], (Profile(), Profile(), Profile())
+    #print("dataset[0]:", dataset[0])
     for path, im, im0s, vid_cap, s in dataset:
+        # print("im0s:", im0s)
+        if isinstance(im0s, list):
+            im0s = im0s[0]
         height_img,width_img,ch_img = im0s.shape
         line_pt_1 = (0, height_img // 2)
         line_pt_2 = (width_img, height_img // 2)
