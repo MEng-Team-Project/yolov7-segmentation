@@ -1,5 +1,7 @@
-# ADDITIONS
+# ADDITIONS (MEng)
 import json
+from writer import Writer
+# END OF ADDITIONS
 
 import argparse
 import os
@@ -108,7 +110,12 @@ def run(
     # Run inference
     model.warmup(imgsz=(1 if pt else bs, 3, *imgsz))  # warmup
     seen, windows, dt = 0, [], (Profile(), Profile(), Profile())
-    #print("dataset[0]:", dataset[0])
+
+    # Initialise DB Writer
+    analysis_db_path = str(save_dir / 'labels' / "analysis.db")
+    writer = Writer(analysis_db_path)
+    writer.begin()
+
     for path, im, im0s, vid_cap, s in dataset:
         # print("im0s:", im0s)
         if isinstance(im0s, list):
@@ -146,10 +153,10 @@ def run(
                 p, im0, frame = path, im0s.copy(), getattr(dataset, 'frame', 0)
 
             p = Path(p)  # to Path
-            save_path  = str(save_dir / p.name)  # im.jpg
-            txt_path   = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # im.txt
-            track_path = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_track_{frame}')  # im_track.json
-            info_path  = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_info_{frame}')  # im_info.json
+            save_path   = str(save_dir / p.name)  # im.jpg
+            txt_path    = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # im.txt
+            track_path  = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_track_{frame}')  # im_track.json
+            info_path   = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_info_{frame}')  # im_info.json
             
             s += '%gx%g ' % im.shape[2:]  # print string
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
@@ -198,11 +205,47 @@ def run(
                         with open(f'{track_path}.json', 'a') as f:
                             f.write(line + '\n')
 
+                        for route_idx, route in enumerate(track_outs):
+                            route_id = writer.insert_route(
+                                frame,
+                                route_idx)
+                            
+                            for subroute in route:
+                                writer.insert_sub_route(
+                                    route_id,
+                                    subroute["x1"],
+                                    subroute["y1"],
+                                    subroute["x2"],
+                                    subroute["y2"])
+
                     if len(tracked_dets)>0:
                         bbox_xyxy = tracked_dets[:,:4]
                         identities = tracked_dets[:, 8]
                         categories = tracked_dets[:, 4]
                         info_s = annotator.draw_id(bbox_xyxy, identities, categories, names)
+                        """
+                        "bbox": {
+                            "x1": str(x1),
+                            "y1": str(y1),
+                            "x2": str(x2),
+                            "y2": str(y2)
+                        },
+                        "label": str(label),
+                        "anchor": {
+                            "x": str(data[0]),
+                            "y": str(data[1])
+                        }
+                        """
+                        for info_item in info_s:
+                            writer.insert_info(
+                                frame,
+                                info_item["bbox"]["x1"],
+                                info_item["bbox"]["y1"],
+                                info_item["bbox"]["x2"],
+                                info_item["bbox"]["y2"],
+                                info_item["label"],
+                                info_item["anchor"]["x"],
+                                info_item["anchor"]["y"])
                         if save_txt:
                             line = json.dumps({"infos": info_s})
                             with open(f'{info_path}.json', 'a') as f:
@@ -226,6 +269,14 @@ def run(
                             "y2":    xyxy[3].item(),
                             "conf":  conf.item(),
                         }
+                        writer.insert_base(
+                            frame,
+                            current_obj["class"],
+                            current_obj["x1"],
+                            current_obj["y1"],
+                            current_obj["x2"],
+                            current_obj["y2"],
+                            current_obj["conf"])
                         line = json.dumps(current_obj)
                         with open(f'{txt_path}.json', 'a') as f:
                             f.write(line + '\n')
@@ -268,6 +319,9 @@ def run(
 
         # Print time (inference-only)
         LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1E3:.1f}ms")
+
+    # Write to SQLite DB
+    writer.end()
 
     # Print results
     t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
