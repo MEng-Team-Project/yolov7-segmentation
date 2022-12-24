@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS detections(
 );
 
 /* Current objects being tracked by ClassySORT (Kalman Filter) */
-CREATE TABLE tracked(
+CREATE TABLE IF NOT EXISTS tracked(
     tracked_id INTEGER PRIMARY KEY,
     frame      INTEGER NOT NULL,
     bbox_x1    FLOAT NOT NULL,
@@ -23,17 +23,11 @@ CREATE TABLE tracked(
     anchor_y   FLOAT NOT NULL
 );
 
-/* Routes inferred from ClassySORT (Kalman Filter) */
-CREATE TABLE routes(
-    route_id  INTEGER PRIMARY KEY,
-    frame     INTEGER NOT NULL,
-    route_idx INTEGER NOT NULL
-);
-
-/* Individual routes */
-CREATE TABLE route(
+/* Routes inferred from ClassySORT (Kalman Filter) for entire duration per object */
+CREATE TABLE IF NOT EXISTS route(
     sub_route_id INTEGER PRIMARY KEY,
-    route_id     INTEGER NOT NULL,
+    frame        INTEGER NOT NULL,
+    route_idx    INTEGER NOT NULL,
     x1           FLOAT NOT NULL,
     y1           FLOAT NOT NULL,
     x2           FLOAT NOT NULL,

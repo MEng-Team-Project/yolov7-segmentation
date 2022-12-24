@@ -34,7 +34,6 @@ class Writer(object):
         # Primary Key counters
         self.base_count     = 0
         self.tracked_count  = 0
-        self.route_count    = 0
         self.subroute_count = 0
         
         # SQLite connection and cursor
@@ -98,29 +97,18 @@ class Writer(object):
         self.cur.execute(cmd)
         self.tracked_count += 1
 
-    def insert_route(
-        self,
-        frame,
-        route_idx):
-        cmd = f"""INSERT INTO routes VALUES (
-            {self.route_count},
-            {frame},
-            {route_idx}
-        )"""
-        self.cur.execute(cmd)
-        self.route_count += 1
-        return self.route_count - 1 # Return this route count
-
     def insert_sub_route(
         self,
-        route_id,
+        frame,
+        route_idx,
         x1,
         y1,
         x2,
         y2):
         cmd = f"""INSERT INTO route VALUES (
             {self.subroute_count},
-            {route_id},
+            {frame},
+            {route_idx},
             {x1},
             {y1},
             {x2},

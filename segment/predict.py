@@ -116,6 +116,9 @@ def run(
     writer = Writer(analysis_db_path)
     writer.begin()
 
+    # Get final output name from loop (Yes, this is very scuffed)
+    final_out = ""
+
     for path, im, im0s, vid_cap, s in dataset:
         # print("im0s:", im0s)
         if isinstance(im0s, list):
@@ -158,6 +161,9 @@ def run(
             track_path  = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_track_{frame}')  # im_track.json
             info_path   = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_info_{frame}')  # im_info.json
             
+            # Set DB final output here
+            final_out = p.stem
+
             s += '%gx%g ' % im.shape[2:]  # print string
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
             imc = im0.copy() if save_crop else im0  # for save_crop
@@ -202,17 +208,16 @@ def run(
 
                     if save_txt:
                         line = json.dumps({"routes": track_outs})
+                        """
                         with open(f'{track_path}.json', 'a') as f:
                             f.write(line + '\n')
+                        """
 
                         for route_idx, route in enumerate(track_outs):
-                            route_id = writer.insert_route(
-                                frame,
-                                route_idx)
-                            
                             for subroute in route:
                                 writer.insert_sub_route(
-                                    route_id,
+                                    frame,
+                                    route_idx,
                                     subroute["x1"],
                                     subroute["y1"],
                                     subroute["x2"],
@@ -248,9 +253,11 @@ def run(
                                 info_item["anchor"]["y"])
                         if save_txt:
                             line = json.dumps({"infos": info_s})
+                            """
                             with open(f'{info_path}.json', 'a') as f:
                                 f.write(line + '\n')
-            
+                            """
+
                 # Write results
                 for j, (*xyxy, conf, cls) in enumerate(reversed(det[:, :6])):
                     """
@@ -278,8 +285,10 @@ def run(
                             current_obj["y2"],
                             current_obj["conf"])
                         line = json.dumps(current_obj)
+                        """
                         with open(f'{txt_path}.json', 'a') as f:
                             f.write(line + '\n')
+                        """
 
                     if save_img or save_crop or view_img:  # Add bbox to image
                         c = int(cls)  # integer class
@@ -323,6 +332,13 @@ def run(
     # Write to SQLite DB
     writer.end()
 
+    # Initialise DB Writer
+    analysis_db_path = str(save_dir / 'labels' / "analysis.db")
+
+    # Rename analytics file
+    analysis_db_final_path = str(save_dir / 'labels' / final_out) + ".db"
+    os.rename(analysis_db_path, analysis_db_final_path)
+    
     # Print results
     t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
     LOGGER.info(f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {(1, 3, *imgsz)}' % t)
